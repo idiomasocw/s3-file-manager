@@ -1,101 +1,145 @@
-import Image from "next/image";
+// src/app/page.js
+"use client";
+
+import React, { useState } from "react";
+import ControlMenu from "../components/ControlMenu";
+import FileManager from "../components/FileManager";
+import InfoBox from "../components/InfoBox";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [currentPath, setCurrentPath] = useState(""); // Track the current path
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleSelect = (item) => setSelectedItem(item);
+
+  // Add Folder function
+  const addFolder = async () => {
+    const folderName = prompt("Enter folder name:");
+    if (!folderName) return;
+
+    try {
+      const response = await fetch("/api/s3/createFolder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix: `${currentPath}${folderName}/` }),
+      });
+      if (response.ok) {
+        console.log("Folder created successfully");
+        setCurrentPath((prevPath) => prevPath); // Refresh
+      } else {
+        console.error("Failed to create folder");
+      }
+    } catch (error) {
+      console.error("Error creating folder:", error);
+    }
+  };
+
+    // Delete Folder function
+  const deleteFolder = async () => {
+    if (!selectedItem || selectedItem.type !== "folder")
+      return alert("Please select a folder to delete.");
+    const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedItem.name}?`);
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch("/api/s3/deleteFolder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix: selectedItem.key }),
+      });
+      if (response.ok) {
+        console.log("Folder deleted successfully");
+        setCurrentPath((prevPath) => prevPath); // Refresh
+        setSelectedItem(null);
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Failed to delete folder");
+        console.error("Failed to delete folder");
+      }
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+    }
+  };
+
+  // Delete Object function
+  const deleteObject = async () => {
+    if (!selectedItem) return alert("Please select an item to delete.");
+    const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedItem.name}?`);
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch("/api/s3/deleteObject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: selectedItem.key }),
+      });
+      if (response.ok) {
+        console.log("Item deleted successfully");
+        setCurrentPath((prevPath) => prevPath); // Refresh
+        setSelectedItem(null);
+      } else {
+        console.error("Failed to delete item");
+      }
+    } catch (error) {
+      console.error("Error deleting item:", error);
+    }
+  };
+
+  // Move Object function
+const moveObject = async () => {
+  if (!selectedItem) return alert("Please select an item to move.");
+  let destinationFolder = prompt("Enter destination folder path:");
+  if (destinationFolder === null) return; // User cancelled the prompt
+
+  // Normalize the destination folder path
+  destinationFolder = destinationFolder.trim();
+  if (destinationFolder && !destinationFolder.endsWith('/')) {
+    destinationFolder += '/';
+  }
+
+  try {
+    const response = await fetch("/api/s3/moveObject", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sourceKey: selectedItem.key,
+        destinationKey: `${destinationFolder}${selectedItem.name}`,
+      }),
+    });
+    if (response.ok) {
+      console.log("Item moved successfully");
+      setCurrentPath((prevPath) => prevPath); // Refresh
+      setSelectedItem(null);
+    } else {
+      console.error("Failed to move item");
+    }
+  } catch (error) {
+    console.error("Error moving item:", error);
+  }
+};
+
+  return (
+    <div className="h-screen flex flex-col">
+      <ControlMenu
+        onAddFolder={addFolder}
+        onDeleteFolder={deleteFolder} // Pass deleteFolder function
+        onDeleteObject={() => deleteObject(selectedItem)} // Pass delete function
+        onMoveObject={moveObject} // Pass move function
+      />
+      <div className="flex flex-grow">
+        <div className="flex-grow p-4">
+          <FileManager
+            onSelect={handleSelect}
+            currentPath={currentPath}
+            setCurrentPath={setCurrentPath}
+            onDeleteObject={deleteObject} // Pass delete function
+            onMoveObject={moveObject} // Pass move function
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <div className="w-1/4 p-4 border-l border-gray-200">
+          <InfoBox selectedItem={selectedItem} />
+        </div>
+      </div>
     </div>
   );
 }
