@@ -88,7 +88,9 @@ export default function Home() {
   // Move Object function
 const moveObject = async () => {
   if (!selectedItem) return alert("Please select an item to move.");
-  let destinationFolder = prompt("Enter destination folder path:");
+
+  // Pre-fill the prompt with the current path
+  let destinationFolder = prompt("Enter destination folder path:", currentPath);
   if (destinationFolder === null) return; // User cancelled the prompt
 
   // Normalize the destination folder path
