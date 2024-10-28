@@ -1,7 +1,7 @@
 // src/app/page.js
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ControlMenu from "../components/ControlMenu";
 import FileManager from "../components/FileManager";
 import InfoBox from "../components/InfoBox";
@@ -9,9 +9,70 @@ import InfoBox from "../components/InfoBox";
 export default function Home() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [currentPath, setCurrentPath] = useState(""); // Track the current path
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Redirects to Cognito's hosted UI for login
+const redirectToCognito = () => {
+  const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
+  const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+  const redirectUri = process.env.NEXT_PUBLIC_COGNITO_CALLBACK_URL;
+
+  // Use encodeURIComponent on the redirect URI to ensure it’s properly encoded
+  const loginUrl = `https://${cognitoDomain}/login?client_id=${clientId}&response_type=code&scope=email+openid+phone&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  
+  window.location.href = loginUrl;
+};
+
+
+  // Check if the user is authenticated
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (token) {
+      setIsAuthenticated(true);
+    } else if (window.location.search.includes("code=")) {
+      // Handle the callback from Cognito
+      const code = new URLSearchParams(window.location.search).get("code");
+      fetchToken(code);
+    } else {
+      redirectToCognito();
+    }
+  }, []);
+
+  const fetchToken = async (code) => {
+    const tokenUrl = `https://${process.env.NEXT_PUBLIC_COGNITO_DOMAIN}/oauth2/token`;
+    const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+    const redirectUri = process.env.NEXT_PUBLIC_COGNITO_CALLBACK_URL;
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code,
+    });
+
+    try {
+      const response = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+
+      if (response.ok) {
+        const { id_token } = await response.json();
+        localStorage.setItem("token", id_token);
+        setIsAuthenticated(true);
+        window.location.href = "/"; // Redirect to the main page after authentication
+      } else {
+        console.error("Failed to fetch token");
+      }
+    } catch (error) {
+      console.error("Error fetching token:", error);
+    }
+  };
 
   const handleSelect = (item) => setSelectedItem(item);
 
+  // Rest of your functions (addFolder, deleteFolder, deleteObject, moveObject)
   // Add Folder function
   const addFolder = async () => {
     const folderName = prompt("Enter folder name:");
@@ -34,7 +95,7 @@ export default function Home() {
     }
   };
 
-    // Delete Folder function
+  // Delete Folder function
   const deleteFolder = async () => {
     if (!selectedItem || selectedItem.type !== "folder")
       return alert("Please select a folder to delete.");
@@ -86,47 +147,49 @@ export default function Home() {
   };
 
   // Move Object function
-const moveObject = async () => {
-  if (!selectedItem) return alert("Please select an item to move.");
+  const moveObject = async () => {
+    if (!selectedItem) return alert("Please select an item to move.");
 
-  // Pre-fill the prompt with the current path
-  let destinationFolder = prompt("Enter destination folder path:", currentPath);
-  if (destinationFolder === null) return; // User cancelled the prompt
+    let destinationFolder = prompt("Enter destination folder path:", currentPath);
+    if (destinationFolder === null) return; // User cancelled the prompt
 
-  // Normalize the destination folder path
-  destinationFolder = destinationFolder.trim();
-  if (destinationFolder && !destinationFolder.endsWith('/')) {
-    destinationFolder += '/';
-  }
-
-  try {
-    const response = await fetch("/api/s3/moveObject", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sourceKey: selectedItem.key,
-        destinationKey: `${destinationFolder}${selectedItem.name}`,
-      }),
-    });
-    if (response.ok) {
-      console.log("Item moved successfully");
-      setCurrentPath((prevPath) => prevPath); // Refresh
-      setSelectedItem(null);
-    } else {
-      console.error("Failed to move item");
+    destinationFolder = destinationFolder.trim();
+    if (destinationFolder && !destinationFolder.endsWith('/')) {
+      destinationFolder += '/';
     }
-  } catch (error) {
-    console.error("Error moving item:", error);
+
+    try {
+      const response = await fetch("/api/s3/moveObject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceKey: selectedItem.key,
+          destinationKey: `${destinationFolder}${selectedItem.name}`,
+        }),
+      });
+      if (response.ok) {
+        console.log("Item moved successfully");
+        setCurrentPath((prevPath) => prevPath); // Refresh
+        setSelectedItem(null);
+      } else {
+        console.error("Failed to move item");
+      }
+    } catch (error) {
+      console.error("Error moving item:", error);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return <div>Redirecting to login...</div>;
   }
-};
 
   return (
     <div className="h-screen flex flex-col">
       <ControlMenu
         onAddFolder={addFolder}
-        onDeleteFolder={deleteFolder} // Pass deleteFolder function
-        onDeleteObject={() => deleteObject(selectedItem)} // Pass delete function
-        onMoveObject={moveObject} // Pass move function
+        onDeleteFolder={deleteFolder}
+        onDeleteObject={() => deleteObject(selectedItem)}
+        onMoveObject={moveObject}
       />
       <div className="flex flex-grow">
         <div className="flex-grow p-4">
@@ -134,8 +197,8 @@ const moveObject = async () => {
             onSelect={handleSelect}
             currentPath={currentPath}
             setCurrentPath={setCurrentPath}
-            onDeleteObject={deleteObject} // Pass delete function
-            onMoveObject={moveObject} // Pass move function
+            onDeleteObject={deleteObject}
+            onMoveObject={moveObject}
           />
         </div>
         <div className="w-1/4 p-4 border-l border-gray-200">
