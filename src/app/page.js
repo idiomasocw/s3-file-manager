@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 import ControlMenu from "../components/ControlMenu";
 import FileManager from "../components/FileManager";
 import InfoBox from "../components/InfoBox";
-import { redirectToCognitoLogin } from "../utils/auth"; // import login redirection utility
+import { redirectToCognitoLogin } from "../utils/auth"; 
 
 export default function Home() {
   const [selectedItem, setSelectedItem] = useState(null);
@@ -15,14 +15,17 @@ export default function Home() {
   // Check if the user is authenticated
   useEffect(() => {
     const token = localStorage.getItem("token");
+    console.log("Token in localStorage:", token);
 
     if (token) {
       setIsAuthenticated(true);
     } else if (window.location.search.includes("code=")) {
       const code = new URLSearchParams(window.location.search).get("code");
+      console.log("Code received from URL:", code);
       fetchToken(code);
     } else {
-      redirectToCognitoLogin(); // Redirect to login if not authenticated
+      console.log("Redirecting to Cognito login, not authenticated.");
+      redirectToCognitoLogin(); 
     }
   }, []);
 
@@ -31,6 +34,11 @@ export default function Home() {
     const tokenUrl = `https://${process.env.NEXT_PUBLIC_COGNITO_DOMAIN}/oauth2/token`;
     const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
     const redirectUri = process.env.NEXT_PUBLIC_COGNITO_CALLBACK_URL;
+    
+    console.log("Token URL:", tokenUrl);
+    console.log("Client ID:", clientId);
+    console.log("Redirect URI:", redirectUri);
+    
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       client_id: clientId,
@@ -47,11 +55,12 @@ export default function Home() {
 
       if (response.ok) {
         const { id_token } = await response.json();
+        console.log("Token fetched successfully:", id_token);
         localStorage.setItem("token", id_token);
         setIsAuthenticated(true);
-        window.history.replaceState({}, document.title, "/"); // Clean up URL after login
+        window.history.replaceState({}, document.title, "/"); 
       } else {
-        console.error("Failed to fetch token");
+        console.error("Failed to fetch token. Response:", response);
       }
     } catch (error) {
       console.error("Error fetching token:", error);
@@ -60,7 +69,6 @@ export default function Home() {
 
   const handleSelect = (item) => setSelectedItem(item);
 
-  // Rest of your functions (addFolder, deleteFolder, deleteObject, moveObject)
   // Add Folder function
   const addFolder = async () => {
     const folderName = prompt("Enter folder name:");
@@ -74,7 +82,7 @@ export default function Home() {
       });
       if (response.ok) {
         console.log("Folder created successfully");
-        setCurrentPath((prevPath) => prevPath); // Refresh
+        setCurrentPath((prevPath) => prevPath); 
       } else {
         console.error("Failed to create folder");
       }
@@ -98,7 +106,7 @@ export default function Home() {
       });
       if (response.ok) {
         console.log("Folder deleted successfully");
-        setCurrentPath((prevPath) => prevPath); // Refresh
+        setCurrentPath((prevPath) => prevPath); 
         setSelectedItem(null);
       } else {
         const errorData = await response.json();
@@ -124,7 +132,7 @@ export default function Home() {
       });
       if (response.ok) {
         console.log("Item deleted successfully");
-        setCurrentPath((prevPath) => prevPath); // Refresh
+        setCurrentPath((prevPath) => prevPath); 
         setSelectedItem(null);
       } else {
         console.error("Failed to delete item");
@@ -139,7 +147,7 @@ export default function Home() {
     if (!selectedItem) return alert("Please select an item to move.");
 
     let destinationFolder = prompt("Enter destination folder path:", currentPath);
-    if (destinationFolder === null) return; // User cancelled the prompt
+    if (destinationFolder === null) return; 
 
     destinationFolder = destinationFolder.trim();
     if (destinationFolder && !destinationFolder.endsWith('/')) {
@@ -157,7 +165,7 @@ export default function Home() {
       });
       if (response.ok) {
         console.log("Item moved successfully");
-        setCurrentPath((prevPath) => prevPath); // Refresh
+        setCurrentPath((prevPath) => prevPath); 
         setSelectedItem(null);
       } else {
         console.error("Failed to move item");
