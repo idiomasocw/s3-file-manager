@@ -5,24 +5,12 @@ import React, { useState, useEffect } from "react";
 import ControlMenu from "../components/ControlMenu";
 import FileManager from "../components/FileManager";
 import InfoBox from "../components/InfoBox";
+import { redirectToCognitoLogin } from "../utils/auth"; // import login redirection utility
 
 export default function Home() {
   const [selectedItem, setSelectedItem] = useState(null);
-  const [currentPath, setCurrentPath] = useState(""); // Track the current path
+  const [currentPath, setCurrentPath] = useState(""); 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // Redirects to Cognito's hosted UI for login
-const redirectToCognito = () => {
-  const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
-  const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-  const redirectUri = process.env.NEXT_PUBLIC_COGNITO_CALLBACK_URL;
-
-  // Use encodeURIComponent on the redirect URI to ensure it’s properly encoded
-  const loginUrl = `https://${cognitoDomain}/login?client_id=${clientId}&response_type=code&scope=email+openid+phone&redirect_uri=${encodeURIComponent(redirectUri)}`;
-  
-  window.location.href = loginUrl;
-};
-
 
   // Check if the user is authenticated
   useEffect(() => {
@@ -31,14 +19,14 @@ const redirectToCognito = () => {
     if (token) {
       setIsAuthenticated(true);
     } else if (window.location.search.includes("code=")) {
-      // Handle the callback from Cognito
       const code = new URLSearchParams(window.location.search).get("code");
       fetchToken(code);
     } else {
-      redirectToCognito();
+      redirectToCognitoLogin(); // Redirect to login if not authenticated
     }
   }, []);
 
+  // Fetch Token function after redirection
   const fetchToken = async (code) => {
     const tokenUrl = `https://${process.env.NEXT_PUBLIC_COGNITO_DOMAIN}/oauth2/token`;
     const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
@@ -61,7 +49,7 @@ const redirectToCognito = () => {
         const { id_token } = await response.json();
         localStorage.setItem("token", id_token);
         setIsAuthenticated(true);
-        window.location.href = "/"; // Redirect to the main page after authentication
+        window.history.replaceState({}, document.title, "/"); // Clean up URL after login
       } else {
         console.error("Failed to fetch token");
       }
@@ -178,10 +166,6 @@ const redirectToCognito = () => {
       console.error("Error moving item:", error);
     }
   };
-
-  if (!isAuthenticated) {
-    return <div>Redirecting to login...</div>;
-  }
 
   return (
     <div className="h-screen flex flex-col">
